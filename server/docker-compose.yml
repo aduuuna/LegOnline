@@ -1,0 +1,14 @@
+services:
+  asterisk:
+    image: andrius/asterisk:22
+    container_name: legonline-asterisk
+    ports:
+      - "8088:8088/tcp"               # HTTP + WS signaling (local dev only, no TLS)
+      - "10000-10020:10000-10020/udp" # RTP media — must match rtp.conf's range 1:1 (host port == container port), or ICE candidates point at the wrong port
+    volumes:
+      - ./asterisk/http.conf:/etc/asterisk/http.conf:ro
+      - ./asterisk/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
+    restart: unless-stopped
+

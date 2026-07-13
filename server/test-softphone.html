@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>LegonLine Phase 0 test softphone</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
+  fieldset { margin-bottom: 1rem; }
+  label { display: block; margin: 0.4rem 0 0.15rem; font-size: 0.9rem; }
+  input { width: 100%; box-sizing: border-box; padding: 0.3rem; }
+  button { margin: 0.5rem 0.4rem 0.5rem 0; padding: 0.4rem 0.8rem; }
+  #log { background: #111; color: #0f0; font-family: monospace; font-size: 0.8rem; height: 220px;
+         overflow-y: auto; padding: 0.5rem; white-space: pre-wrap; }
+  #status { font-weight: bold; }
+</style>
+</head>
+<body>
+<h2>LegonLine Phase 0 test softphone</h2>
+<p>Open this page in two browser tabs (or one normal + one incognito). Register one as <code>1001</code>, the other as <code>1002</code>, then call between them.</p>
+
+<fieldset>
+  <legend>Connection</legend>
+  <label>WebSocket server</label>
+  <input id="server" value="ws://localhost:8088/ws" />
+  <label>Domain (used to build the SIP URI, e.g. sip:1001@domain)</label>
+  <input id="domain" value="127.0.0.1" />
+  <label>Extension</label>
+  <input id="extension" value="1001" />
+  <label>Password</label>
+  <input id="password" value="1001pass" />
+  <button id="btnRegister">Connect &amp; Register</button>
+  <button id="btnUnregister">Unregister &amp; Disconnect</button>
+</fieldset>
+
+<fieldset>
+  <legend>Call</legend>
+  <label>Call extension</label>
+  <input id="target" value="1002" />
+  <button id="btnCall">Call</button>
+  <button id="btnAnswer">Answer</button>
+  <button id="btnHangup">Hang up</button>
+</fieldset>
+
+<p>Status: <span id="status">not connected</span></p>
+<audio id="remoteAudio" autoplay></audio>
+<div id="log"></div>
+
+<script type="module">
+  import { Web } from "https://cdn.jsdelivr.net/npm/sip.js@0.21.2/+esm";
+
+  const logEl = document.getElementById("log");
+  const statusEl = document.getElementById("status");
+  function log(msg) {
+    const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    console.log(line);
+    logEl.textContent += line + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function setStatus(s) { statusEl.textContent = s; }
+
+  let simpleUser = null;
+
+  document.getElementById("btnRegister").addEventListener("click", async () => {
+    const server = document.getElementById("server").value.trim();
+    const domain = document.getElementById("domain").value.trim();
+    const extension = document.getElementById("extension").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (simpleUser) {
+      log("Already connected — click Unregister & Disconnect first.");
+      return;
+    }
+
+    const options = {
+      aor: `sip:${extension}@${domain}`,
+      media: {
+        constraints: { audio: true, video: false },
+        remote: { audio: document.getElementById("remoteAudio") }
+      },
+      userAgentOptions: {
+        authorizationUsername: extension,
+        authorizationPassword: password
+      },
+      delegate: {
+        onCallReceived: async () => {
+          log("Incoming call received. Click Answer.");
+          setStatus("incoming call");
+        },
+        onCallAnswered: () => { log("Call answered — audio should be flowing."); setStatus("in call"); },
+        onCallHangup: () => { log("Call ended."); setStatus("registered, idle"); },
+        onCallCreated: () => log("Call session created."),
+        onRegistered: () => { log(`Registered as ${extension}.`); setStatus("registered, idle"); },
+        onUnregistered: () => { log("Unregistered."); setStatus("not connected"); },
+        onServerConnect: () => log("WebSocket connected to Asterisk."),
+        onServerDisconnect: (error) => log(`WebSocket disconnected. ${error ? error.message : ""}`)
+      }
+    };
+
+    simpleUser = new Web.SimpleUser(server, options);
+
+    try {
+      log(`Connecting to ${server} ...`);
+      await simpleUser.connect();
+      log("Connected. Registering ...");
+      await simpleUser.register();
+    } catch (err) {
+      log(`ERROR: ${err.message || err}`);
+      setStatus("error");
+    }
+  });
+
+  document.getElementById("btnUnregister").addEventListener("click", async () => {
+    if (!simpleUser) { log("Not connected."); return; }
+    try {
+      await simpleUser.unregister();
+      await simpleUser.disconnect();
+    } catch (err) {
+      log(`ERROR: ${err.message || err}`);
+    } finally {
+      simpleUser = null;
+      setStatus("not connected");
+    }
+  });
+
+  document.getElementById("btnCall").addEventListener("click", async () => {
+    if (!simpleUser) { log("Register first."); return; }
+    const domain = document.getElementById("domain").value.trim();
+    const target = document.getElementById("target").value.trim();
+    try {
+      log(`Calling sip:${target}@${domain} ...`);
+      await simpleUser.call(`sip:${target}@${domain}`);
+    } catch (err) {
+      log(`ERROR: ${err.message || err}`);
+    }
+  });
+
+  document.getElementById("btnAnswer").addEventListener("click", async () => {
+    if (!simpleUser) { log("Not connected."); return; }
+    try { await simpleUser.answer(); } catch (err) { log(`ERROR: ${err.message || err}`); }
+  });
+
+  document.getElementById("btnHangup").addEventListener("click", async () => {
+    if (!simpleUser) { log("Not connected."); return; }
+    try { await simpleUser.hangup(); } catch (err) { log(`ERROR: ${err.message || err}`); }
+  });
+</script>
+</body>
+</html>
