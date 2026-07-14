@@ -57,6 +57,7 @@
     logEl.scrollTop = logEl.scrollHeight;
   }
   function setStatus(s) { statusEl.textContent = s; }
+  function errText(err) { return err && err.name ? `${err.name}: ${err.message || err}` : (err && err.message) || err; }
 
   let simpleUser = null;
 
@@ -69,6 +70,11 @@
     if (simpleUser) {
       log("Already connected — click Unregister & Disconnect first.");
       return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      log(`WARNING: navigator.mediaDevices.getUserMedia is unavailable on origin "${location.origin || location.protocol}". ` +
+          `If this page was opened via file://, serve it over http://localhost instead (e.g. "npx serve server").`);
     }
 
     const options = {
@@ -104,7 +110,7 @@
       log("Connected. Registering ...");
       await simpleUser.register();
     } catch (err) {
-      log(`ERROR: ${err.message || err}`);
+      log(`ERROR: ${errText(err)}`);
       setStatus("error");
     }
   });
@@ -115,7 +121,7 @@
       await simpleUser.unregister();
       await simpleUser.disconnect();
     } catch (err) {
-      log(`ERROR: ${err.message || err}`);
+      log(`ERROR: ${errText(err)}`);
     } finally {
       simpleUser = null;
       setStatus("not connected");
@@ -130,18 +136,18 @@
       log(`Calling sip:${target}@${domain} ...`);
       await simpleUser.call(`sip:${target}@${domain}`);
     } catch (err) {
-      log(`ERROR: ${err.message || err}`);
+      log(`ERROR: ${errText(err)}`);
     }
   });
 
   document.getElementById("btnAnswer").addEventListener("click", async () => {
     if (!simpleUser) { log("Not connected."); return; }
-    try { await simpleUser.answer(); } catch (err) { log(`ERROR: ${err.message || err}`); }
+    try { await simpleUser.answer(); } catch (err) { log(`ERROR: ${errText(err)}`); }
   });
 
   document.getElementById("btnHangup").addEventListener("click", async () => {
     if (!simpleUser) { log("Not connected."); return; }
-    try { await simpleUser.hangup(); } catch (err) { log(`ERROR: ${err.message || err}`); }
+    try { await simpleUser.hangup(); } catch (err) { log(`ERROR: ${errText(err)}`); }
   });
 </script>
 </body>

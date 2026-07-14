@@ -1,1 +1,6 @@
 /cert
+server/asterisk/certs/
+node_modules/
+.env
+docs/
+
