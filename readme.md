@@ -2,16 +2,8 @@
 
 Campus-WiFi VoIP calling for University of Ghana students. Each student's **student ID is their call line**, authenticated against the same credentials they already use to join the `STUDENT` WiFi. Built with Asterisk (server) and Expo / React Native (app).
 
-No syncing separate user databases — Asterisk authenticates against the same directory as campus WiFi. Full design, tech stack, and call flow: [docs/architecture.md](docs/architecture.md).
+No syncing separate user databases — Asterisk authenticates against the same directory as campus WiFi.
 
-## Status
-
-- ✅ **Phase 0 — Asterisk core telephony proven.** Two hardcoded test endpoints registering and calling each other over WebRTC in Docker. Details: [docs/phase0.md](docs/phase0.md).
-- ⬜ Phase 1 — minimal Expo app, foreground calling
-- ⬜ Phase 2 — background/killed-state receiving (CallKeep + push)
-- ⬜ Phase 3 — real LDAP-backed identity
-
-Full roadmap: [docs/architecture.md](docs/architecture.md#5-implementation-roadmap).
 
 ## Repo layout
 
