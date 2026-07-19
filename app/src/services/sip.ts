@@ -1,34 +1,34 @@
 /**
- * SIP signaling for LegonLine, built on SIP.js's platform-agnostic core API
- * (UserAgent/Registerer) rather than Web.SimpleUser, which assumes a browser
- * DOM (an <audio> element, window.navigator.mediaDevices, etc.) that doesn't
- * exist in React Native.
+ * SIP signaling + media for LegOnline, built on SIP.js's core API
+ * (UserAgent/Registerer/Inviter/Invitation) rather than Web.SimpleUser, which
+ * assumes a browser DOM (an <audio> element, etc.) that doesn't exist in
+ * React Native.
  *
- * connectAndRegister()/disconnectAndUnregister() are fully implemented and
- * real. SIP.js's default WebSocket transport just calls `new WebSocket(...)`
- * on the global — React Native provides that natively — so no extra native
- * wiring is needed for signaling. This was verified by reading SIP.js's
- * actual source (node_modules/sip.js/lib/platform/web/transport/transport.js)
- * rather than assumed.
+ * Signaling: SIP.js's default WebSocket transport just calls
+ * `new WebSocket(...)` on the global — React Native provides that natively.
  *
- * call()/answer()/hangup() are NOT implemented yet — deliberately. Placing or
- * answering a call requires a SessionDescriptionHandler backed by real media,
- * and the browser test page's version (test-softphone.html) relied on
- * getUserMedia()/RTCPeerConnection, which don't exist in React Native without
- * react-native-webrtc. The path to implement these, next:
- *   1. At app startup, call `registerGlobals()` from "react-native-webrtc" —
- *      it polyfills navigator.mediaDevices, RTCPeerConnection, etc. as
- *      globals (confirmed this export exists in the installed package).
- *   2. SIP.js's *default* SessionDescriptionHandler is written against those
- *      same browser-shaped globals, so it may work once they're polyfilled,
- *      without writing a fully custom handler — this needs verifying against
- *      a real device/build, not assumed.
- *   3. There's no <audio> element in React Native. A received MediaStream
- *      plays through the device's audio output automatically once attached
- *      to the peer connection — react-native-webrtc handles that natively.
+ * Media: `registerGlobals()` from react-native-webrtc (called once below)
+ * polyfills `navigator.mediaDevices` and `RTCPeerConnection` as globals.
+ * SIP.js's default SessionDescriptionHandler is written against exactly those
+ * two globals (verified in node_modules/sip.js/lib/platform/web/
+ * session-description-handler/), so no custom sessionDescriptionHandlerFactory
+ * is needed. There's no <audio> element in React Native — a received remote
+ * audio track plays through the device's audio output automatically once the
+ * peer connection is established; react-native-webrtc handles that natively.
  */
-import { UserAgent, Registerer, RegistererState } from "sip.js";
+import { registerGlobals } from "react-native-webrtc";
+import {
+  Inviter,
+  Invitation,
+  Registerer,
+  RegistererState,
+  Session,
+  SessionState,
+  UserAgent,
+} from "sip.js";
 import type { UserAgentOptions } from "sip.js";
+
+registerGlobals();
 
 export interface SipCredentials {
   wssUrl: string;
@@ -37,15 +37,40 @@ export interface SipCredentials {
   password: string;
 }
 
+export interface CallEndedInfo {
+  peer: string;
+  direction: "incoming" | "outgoing";
+  startedAt: number; // ms since epoch, when the call was placed/received
+  answered: boolean;
+  durationSeconds: number; // 0 if never answered
+}
+
 export interface SipDelegate {
   onLog: (message: string) => void;
   onStatusChange: (status: string) => void;
   onRegistered: () => void;
   onUnregistered: () => void;
+  onCallReceived: (fromExtension: string) => void;
+  onCallAnswered: () => void;
+  onCallEnded: (info: CallEndedInfo) => void;
 }
+
+const AUDIO_ONLY = {
+  sessionDescriptionHandlerOptions: {
+    constraints: { audio: true, video: false },
+  },
+};
 
 let userAgent: UserAgent | null = null;
 let registerer: Registerer | null = null;
+let currentDelegate: SipDelegate | null = null;
+let currentDomain = "";
+
+let session: Session | null = null;
+let sessionPeer = "";
+let sessionDirection: "incoming" | "outgoing" = "outgoing";
+let sessionStartedAt = 0;
+let sessionAnsweredAt: number | null = null;
 
 export function isConnected(): boolean {
   return userAgent !== null;
@@ -66,6 +91,9 @@ export async function connectAndRegister(creds: SipCredentials, delegate: SipDel
     transportOptions: { server: creds.wssUrl },
     authorizationUsername: creds.extension,
     authorizationPassword: creds.password,
+    delegate: {
+      onInvite: (invitation) => handleIncomingCall(invitation),
+    },
   };
 
   const ua = new UserAgent(options);
@@ -85,6 +113,8 @@ export async function connectAndRegister(creds: SipCredentials, delegate: SipDel
 
   userAgent = ua;
   registerer = reg;
+  currentDelegate = delegate;
+  currentDomain = creds.domain;
 
   try {
     delegate.onLog(`Connecting to ${creds.wssUrl} ...`);
@@ -94,6 +124,7 @@ export async function connectAndRegister(creds: SipCredentials, delegate: SipDel
   } catch (err) {
     userAgent = null;
     registerer = null;
+    currentDelegate = null;
     throw err;
   }
 }
@@ -102,10 +133,16 @@ export async function disconnectAndUnregister(): Promise<void> {
   if (!userAgent || !registerer) {
     throw new Error("Not connected.");
   }
+  if (session) {
+    await hangup().catch(() => {
+      // Best effort — don't let a hangup failure block disconnecting.
+    });
+  }
   const ua = userAgent;
   const reg = registerer;
   userAgent = null;
   registerer = null;
+  currentDelegate = null;
   try {
     await reg.unregister();
   } finally {
@@ -113,18 +150,111 @@ export async function disconnectAndUnregister(): Promise<void> {
   }
 }
 
-// --- Calling: not implemented yet — see the file header comment above. ---
+export async function call(targetExtension: string): Promise<void> {
+  if (!userAgent || !currentDelegate) {
+    throw new Error("Not connected — register first.");
+  }
+  if (session) {
+    throw new Error("A call is already in progress.");
+  }
 
-export async function call(_targetExtension: string): Promise<void> {
-  throw new Error(
-    "call() is not implemented yet — needs react-native-webrtc wired in as the SIP.js media handler. See the comment at the top of src/services/sip.ts."
-  );
+  const target = UserAgent.makeURI(`sip:${targetExtension}@${currentDomain}`);
+  if (!target) {
+    throw new Error(`Invalid target extension "${targetExtension}".`);
+  }
+
+  const inviter = new Inviter(userAgent, target, AUDIO_ONLY);
+  trackSession(inviter, targetExtension, "outgoing");
+  currentDelegate.onStatusChange("calling");
+  await inviter.invite();
 }
 
 export async function answer(): Promise<void> {
-  throw new Error("answer() is not implemented yet — see the comment at the top of src/services/sip.ts.");
+  if (!session || !(session instanceof Invitation)) {
+    throw new Error("No incoming call to answer.");
+  }
+  await session.accept(AUDIO_ONLY);
 }
 
 export async function hangup(): Promise<void> {
-  throw new Error("hangup() is not implemented yet — see the comment at the top of src/services/sip.ts.");
+  const s = session;
+  if (!s) {
+    throw new Error("No active call.");
+  }
+  switch (s.state) {
+    case SessionState.Initial:
+    case SessionState.Establishing:
+      if (s instanceof Inviter) {
+        await s.cancel();
+      } else if (s instanceof Invitation) {
+        await s.reject();
+      }
+      break;
+    case SessionState.Established:
+      await s.bye();
+      break;
+    default:
+      // Already terminating/terminated — nothing to do.
+      break;
+  }
+}
+
+function handleIncomingCall(invitation: Invitation): void {
+  const delegate = currentDelegate;
+  if (!delegate) {
+    invitation.reject().catch(() => {});
+    return;
+  }
+  if (session) {
+    delegate.onLog(`Rejected incoming call from ${invitation.remoteIdentity.uri.user ?? "unknown"} — already in a call.`);
+    invitation.reject({ statusCode: 486 }).catch(() => {});
+    return;
+  }
+
+  const from = invitation.remoteIdentity.uri.user ?? "unknown";
+  trackSession(invitation, from, "incoming");
+  delegate.onLog(`Incoming call from ${from}. Press Answer.`);
+  delegate.onStatusChange("incoming call");
+  delegate.onCallReceived(from);
+}
+
+function trackSession(s: Session, peer: string, direction: "incoming" | "outgoing"): void {
+  session = s;
+  sessionPeer = peer;
+  sessionDirection = direction;
+  sessionStartedAt = Date.now();
+  sessionAnsweredAt = null;
+
+  s.stateChange.addListener((state) => {
+    const delegate = currentDelegate;
+    switch (state) {
+      case SessionState.Established:
+        sessionAnsweredAt = Date.now();
+        delegate?.onLog("Call answered — audio should be flowing.");
+        delegate?.onStatusChange("in call");
+        delegate?.onCallAnswered();
+        break;
+      case SessionState.Terminated: {
+        if (session !== s) {
+          break; // A newer call has already replaced this one.
+        }
+        const info: CallEndedInfo = {
+          peer: sessionPeer,
+          direction: sessionDirection,
+          startedAt: sessionStartedAt,
+          answered: sessionAnsweredAt !== null,
+          durationSeconds:
+            sessionAnsweredAt !== null ? Math.round((Date.now() - sessionAnsweredAt) / 1000) : 0,
+        };
+        session = null;
+        sessionAnsweredAt = null;
+        delegate?.onLog("Call ended.");
+        delegate?.onStatusChange(userAgent ? "registered, idle" : "not connected");
+        delegate?.onCallEnded(info);
+        break;
+      }
+      default:
+        break;
+    }
+  });
 }

@@ -1,31 +1,56 @@
 {
   "expo": {
-    "name": "LegonLine",
+    "name": "LegOnline",
     "slug": "legonline",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bitcode": false
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#1A274A",
+        "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH"
+      ],
+      "package": "com.anonymous.legonline"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon-legonline.png"
     },
     "plugins": [
       "expo-secure-store",
       "expo-sqlite",
       "expo-status-bar",
-      "@config-plugins/react-native-webrtc"
-    ]
+      "@config-plugins/react-native-webrtc",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo-rounded.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d8057698-8508-4a53-af26-47d8aa554994"
+      }
+    }
   }
 }

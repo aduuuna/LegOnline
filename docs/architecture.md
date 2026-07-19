@@ -21,7 +21,7 @@ There is **one identity**, not two. Campus WiFi (`STUDENT`) runs WPA2-Enterprise
                                            │ WSS (WebSocket) + DTLS-SRTP
                                            │
                                    ┌───────┴────────┐
-                                   │  LegonLine app │
+                                   │  LegOnline app │
                                    │  (Expo dev     │
                                    │   build)       │
                                    └────────────────┘

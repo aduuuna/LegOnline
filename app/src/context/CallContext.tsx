@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 import * as sip from "../services/sip";
 import type { SipCredentials } from "../services/sip";
+import { addCallToHistory } from "../storage/history";
 
 interface CallContextValue {
   log: string[];
@@ -42,6 +43,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           onUnregistered: () => {
             registeredRef.current = false;
             setRegistered(false);
+          },
+          onCallReceived: () => {},
+          onCallAnswered: () => {},
+          onCallEnded: (info) => {
+            addCallToHistory({
+              peer: info.peer,
+              direction: info.direction,
+              timestamp: info.startedAt,
+              durationSeconds: info.durationSeconds,
+            }).catch((err) => addLog(`ERROR saving call to history: ${errText(err)}`));
           },
         });
       } catch (err) {

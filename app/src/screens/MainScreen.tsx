@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Button, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useCall } from "../context/CallContext";
 import { SIP_CONFIG } from "../config";
 import { loadCredentials, saveCredentials } from "../services/auth";
@@ -11,6 +12,7 @@ export default function MainScreen() {
   const [domain, setDomain] = useState(SIP_CONFIG.domain);
   const [extension, setExtension] = useState("1001");
   const [password, setPassword] = useState("1001pass");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [target, setTarget] = useState("1002");
 
   const logScrollRef = useRef<ScrollView>(null);
@@ -48,7 +50,23 @@ export default function MainScreen() {
         <TextInput style={styles.input} value={extension} onChangeText={setExtension} autoCapitalize="none" />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={[styles.input, styles.passwordInput]}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!passwordVisible}
+            autoCapitalize="none"
+          />
+          <Pressable
+            style={styles.eyeButton}
+            onPress={() => setPasswordVisible((v) => !v)}
+            hitSlop={8}
+            accessibilityLabel={passwordVisible ? "Hide password" : "Show password"}
+          >
+            <Ionicons name={passwordVisible ? "eye-off" : "eye"} size={22} color="#000" />
+          </Pressable>
+        </View>
 
         <View style={styles.buttonRow}>
           <Button title="Connect & Register" onPress={handleRegister} disabled={registered} />
@@ -87,7 +105,10 @@ const styles = StyleSheet.create({
   section: { marginBottom: 16 },
   sectionTitle: { fontWeight: "bold", fontSize: 16, marginBottom: 6 },
   label: { marginTop: 6, marginBottom: 2 },
-  input: { borderWidth: 1, borderColor: "#888", padding: 6 },
+  input: { borderWidth: 1, borderColor: "#888", padding: 6, color: "#000" },
+  passwordRow: { flexDirection: "row", alignItems: "center" },
+  passwordInput: { flex: 1 },
+  eyeButton: { paddingHorizontal: 10, paddingVertical: 6 },
   buttonRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 10, gap: 8 },
   status: { fontWeight: "bold", marginBottom: 6 },
   log: { flex: 1, borderWidth: 1, borderColor: "#888", padding: 6 },

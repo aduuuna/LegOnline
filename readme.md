@@ -1,4 +1,4 @@
-# LegonLine
+# LegOnline
 
 Campus-WiFi VoIP calling for University of Ghana students. Each student's **student ID is their call line**, authenticated against the same credentials they already use to join the `STUDENT` WiFi. Built with Asterisk (server) and Expo / React Native (app).
 
