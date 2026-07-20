@@ -36,6 +36,7 @@
       "expo-sqlite",
       "expo-status-bar",
       "@config-plugins/react-native-webrtc",
+      "@config-plugins/react-native-callkeep",
       "expo-font",
       [
         "expo-splash-screen",

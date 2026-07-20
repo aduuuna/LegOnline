@@ -132,14 +132,14 @@ Asterisk cannot send APNs/FCM directly — that's the entire reason `push-gatewa
 - Full walkthrough and gotchas: [phase0.md](phase0.md).
 
 ### Phase 1 — Minimal app, foreground calling
-- [ ] `expo prebuild` / EAS **development build** (NOT Expo Go).
-- [ ] Install `react-native-webrtc`, `sip.js`, `expo-secure-store`, `expo-sqlite`.
-- [ ] **SignIn** screen → `sip.ts` registers against Asterisk using entered ID/password; store creds in SecureStore.
-- [ ] Auto-login: on launch, if SecureStore has creds → silently re-register → land on Dial.
-- [ ] **Dial** screen → place a call by student ID.
-- [ ] **InCall** screen → mute + hang up + call timer.
-- [ ] **History** → write each call to SQLite, list it.
-- ✅ **Milestone:** one phone calls another, both apps open, over campus WiFi.
+- [x] `expo prebuild` / EAS **development build** (NOT Expo Go).
+- [x] Install `react-native-webrtc`, `sip.js`, `expo-secure-store`, `expo-sqlite`.
+- [x] **SignIn** screen → `sip.ts` registers against Asterisk using entered ID/password; store creds in SecureStore.
+- [x] Auto-login: on launch, if SecureStore has creds → silently re-register → land on Dial.
+- [x] **Dial** screen → place a call by student ID (phone-style tap dialpad).
+- [x] **InCall** screen → mute + hang up + call timer (+ speaker toggle, answer/decline for incoming; full-screen overlay during any call).
+- [x] **History** → write each call to SQLite, list it.
+- [ ] ✅ **Milestone:** one phone calls another, both apps open, over campus WiFi. *(verified phone ↔ PC-browser so far; the two-phone run is the last gate — see phase1.md §6)*
 
 ### Phase 2 — Background & killed-state receiving
 - [ ] Add `react-native-callkeep`; show native incoming-call UI.

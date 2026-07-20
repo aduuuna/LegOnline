@@ -12,3 +12,14 @@ services:
       - ./asterisk/rtp.conf:/etc/asterisk/rtp.conf:ro
     restart: unless-stopped
 
+  push-gateway:
+    image: node:22-alpine
+    container_name: legonline-push-gateway
+    working_dir: /srv/push-gateway
+    volumes:
+      - ../push-gateway:/srv/push-gateway
+    command: sh -c "npm install && npm run start"
+    ports:
+      - "3010:3000"   # host 3010 (3000 was taken locally) -> container 3000; app POSTs its push token here
+    restart: unless-stopped
+

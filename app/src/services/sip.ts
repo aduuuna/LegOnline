@@ -125,6 +125,9 @@ export async function connectAndRegister(creds: SipCredentials, delegate: SipDel
     userAgent = null;
     registerer = null;
     currentDelegate = null;
+    await ua.stop().catch(() => {
+      // Best effort — the UA may never have fully started.
+    });
     throw err;
   }
 }
@@ -196,6 +199,33 @@ export async function hangup(): Promise<void> {
     default:
       // Already terminating/terminated — nothing to do.
       break;
+  }
+}
+
+// Enables/disables the local (microphone) audio tracks of the active call.
+// The default SDH doesn't type its peerConnection, so use a minimal shape.
+interface MinimalSender {
+  track: { enabled: boolean } | null;
+}
+interface MinimalPeerConnection {
+  getSenders(): MinimalSender[];
+}
+
+export function setMuted(muted: boolean): void {
+  if (!session) {
+    throw new Error("No active call.");
+  }
+  const sdh = session.sessionDescriptionHandler as unknown as
+    | { peerConnection?: MinimalPeerConnection }
+    | undefined;
+  const pc = sdh?.peerConnection;
+  if (!pc) {
+    throw new Error("Call has no media session yet.");
+  }
+  for (const sender of pc.getSenders()) {
+    if (sender.track) {
+      sender.track.enabled = !muted;
+    }
   }
 }
 
